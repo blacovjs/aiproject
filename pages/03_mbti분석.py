@@ -5,147 +5,98 @@ from pathlib import Path
 import html
 
 st.set_page_config(
-    page_title="국가별 MBTI 비율",
+    page_title="국가별 MBTI 분석",
     page_icon="🌍",
     layout="wide"
 )
 
+# ==========================================
 # CSV 파일 경로
-# 현재 파이썬 파일은 pages 폴더에 있고
-# CSV 파일은 그 상위 폴더에 있음
-CSV_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "countriesMBTI_16types.csv"
-)
+# 파이썬 파일은 pages 폴더에 있음
+# CSV 파일은 프로젝트 최상위 폴더에 있음
+# ==========================================
 
+CSV_PATH = Path(__file__).resolve().parent.parent / "countriesMBTI_16types.csv"
+
+
+# ==========================================
+# 데이터 불러오기
+# ==========================================
 
 @st.cache_data
 def load_data():
-    # CSV 파일 불러오기
+
     data = pd.read_csv(CSV_PATH)
 
-    if "Country" not in data.columns:
-        raise ValueError(
-            "CSV 파일에 Country 열이 없습니다."
-        )
-
-    # 국가 열을 제외한 MBTI 유형 열
     mbti_columns = [
-        column for column in data.columns
-        if column != "Country"
+        col for col in data.columns
+        if col != "Country"
     ]
 
-    # 비율 데이터를 숫자로 변환
     data[mbti_columns] = data[mbti_columns].apply(
         pd.to_numeric,
         errors="coerce"
     )
 
-    # 결측값 처리
-    data = data.dropna(subset=["Country"])
     data[mbti_columns] = data[mbti_columns].fillna(0)
 
     return data, mbti_columns
 
 
-def make_blue_gradient(count):
-    # 1위는 빨간색
-    colors = ["#E53935"]
-
-    if count <= 1:
-        return colors
-
-    # 나머지는 파란색에서 연한 파란색으로
-    dark_blue = (21, 101, 192)
-    light_blue = (187, 222, 251)
-
-    for i in range(count - 1):
-
-        t = i / max(count - 2, 1)
-
-        r = round(
-            dark_blue[0]
-            + (light_blue[0] - dark_blue[0]) * t
-        )
-
-        g = round(
-            dark_blue[1]
-            + (light_blue[1] - dark_blue[1]) * t
-        )
-
-        b = round(
-            dark_blue[2]
-            + (light_blue[2] - dark_blue[2]) * t
-        )
-
-        colors.append(
-            f"rgb({r}, {g}, {b})"
-        )
-
-    return colors
-
-
-# 페이지 제목
-st.title("🌍 국가별 MBTI 비율")
-
-st.caption(
-    "국가를 선택하면 해당 국가의 MBTI 16가지 유형별 비율을 확인할 수 있어요."
-)
-
-
-# 데이터 불러오기
 try:
-
     df, mbti_columns = load_data()
 
 except FileNotFoundError:
 
     st.error(
         "CSV 파일을 찾을 수 없습니다. "
-        "countriesMBTI_16types.csv 파일이 "
-        "프로젝트 상위 폴더에 있는지 확인해주세요."
-    )
-
-    st.stop()
-
-except Exception as error:
-
-    st.error(
-        f"데이터를 불러오는 중 오류가 발생했습니다: {error}"
+        "프로젝트 최상위 폴더에 "
+        "countriesMBTI_16types.csv 파일이 있는지 확인해주세요."
     )
 
     st.stop()
 
 
-# 국가 목록
-countries = sorted(
-    df["Country"].astype(str).unique().tolist()
+# ==========================================
+# 페이지 제목
+# ==========================================
+
+st.title("🌍 국가별 MBTI 분석")
+
+st.write(
+    "국가를 선택하면 해당 국가의 MBTI 16가지 유형별 비율을 "
+    "막대그래프로 확인할 수 있어요."
 )
 
 
-# 기본 선택 국가
-default_country = (
-    "South Korea"
-    if "South Korea" in countries
-    else countries[0]
-)
-
-
+# ==========================================
 # 국가 선택
+# ==========================================
+
+countries = sorted(df["Country"].astype(str).tolist())
+
+default_index = (
+    countries.index("South Korea")
+    if "South Korea" in countries
+    else 0
+)
+
 selected_country = st.selectbox(
     "🌎 국가 선택",
     countries,
-    index=countries.index(default_country)
+    index=default_index
 )
 
 
-# 선택한 국가의 데이터
+# ==========================================
+# 선택 국가 데이터
+# ==========================================
+
 country_data = df[
-    df["Country"].astype(str) == selected_country
+    df["Country"] == selected_country
 ].iloc[0]
 
 
-# MBTI 비율 계산
 chart_data = pd.DataFrame({
     "MBTI": mbti_columns,
     "비율": [
@@ -155,103 +106,138 @@ chart_data = pd.DataFrame({
 })
 
 
-# 비율이 높은 순서로 정렬
+# 높은 비율부터 정렬
 chart_data = chart_data.sort_values(
-    by="비율",
+    "비율",
     ascending=False
 ).reset_index(drop=True)
 
 
-# 그래프 색상 생성
-colors = make_blue_gradient(
-    len(chart_data)
-)
+# ==========================================
+# 색상 그라데이션
+# ==========================================
+
+def create_colors(count):
+
+    colors = []
+
+    # 1위 빨간색
+    colors.append("#E53935")
+
+    # 나머지 파란색 그라데이션
+    dark_blue = (25, 118, 210)
+    light_blue = (187, 222, 251)
+
+    for i in range(1, count):
+
+        t = (i - 1) / max(count - 2, 1)
+
+        r = int(
+            dark_blue[0]
+            + (light_blue[0] - dark_blue[0]) * t
+        )
+
+        g = int(
+            dark_blue[1]
+            + (light_blue[1] - dark_blue[1]) * t
+        )
+
+        b = int(
+            dark_blue[2]
+            + (light_blue[2] - dark_blue[2]) * t
+        )
+
+        colors.append(
+            f"rgb({r},{g},{b})"
+        )
+
+    return colors
 
 
+colors = create_colors(len(chart_data))
+
+
+# ==========================================
 # 그래프 제목
+# ==========================================
+
 st.subheader(
-    f"📊 {selected_country}의 MBTI 유형별 비율"
+    f"📊 {selected_country}의 MBTI 비율"
 )
 
 
-# 가장 높은 비율
-max_value = max(
-    chart_data["비율"].max(),
-    1
-)
+# ==========================================
+# 막대그래프 생성
+# ==========================================
+
+max_value = chart_data["비율"].max()
+
+if max_value <= 0:
+    max_value = 1
 
 
-# HTML 그래프 시작
-chart_html = """
+graph_html = """
 <div style="
-    width: 100%;
-    padding: 15px 5px;
-    font-family: Arial, sans-serif;
+    width:100%;
+    font-family:Arial,sans-serif;
+    padding:10px 0;
 ">
 """
 
 
-# MBTI 막대그래프 생성
-for index, row in chart_data.iterrows():
+for i, row in chart_data.iterrows():
 
-    mbti = html.escape(
-        str(row["MBTI"])
-    )
+    mbti = html.escape(str(row["MBTI"]))
 
-    value = float(
-        row["비율"]
-    )
+    value = float(row["비율"])
 
-    color = colors[index]
+    color = colors[i]
 
-    # 막대 길이 계산
-    width = (
-        value / max_value
-    ) * 100
+    width = (value / max_value) * 100
 
-    chart_html += f"""
+    graph_html += f"""
     <div style="
-        display: flex;
-        align-items: center;
-        margin-bottom: 13px;
-        gap: 10px;
+        display:flex;
+        align-items:center;
+        gap:12px;
+        margin-bottom:14px;
+        width:100%;
     ">
 
         <div style="
-            width: 55px;
-            min-width: 55px;
-            font-weight: bold;
-            font-size: 14px;
-            color: #333;
+            width:55px;
+            min-width:55px;
+            font-size:14px;
+            font-weight:bold;
+            color:#333;
         ">
             {mbti}
         </div>
 
         <div style="
-            flex-grow: 1;
-            background-color: #f1f3f5;
-            border-radius: 6px;
-            height: 28px;
-            overflow: hidden;
+            flex:1;
+            height:27px;
+            background:#f0f2f5;
+            border-radius:5px;
+            overflow:hidden;
         ">
 
             <div style="
-                width: {width:.2f}%;
-                background-color: {color};
-                height: 28px;
-                border-radius: 6px;
-                min-width: 2px;
+                width:{width:.2f}%;
+                height:27px;
+                background:{color};
+                border-radius:5px;
             ">
             </div>
 
         </div>
 
         <div style="
-            width: 65px;
-            min-width: 65px;
-            font-size: 13px;
-            text-align: right;
-            color: #333;
+            width:70px;
+            min-width:70px;
+            text-align:right;
+            font-size:13px;
+            color:#333;
         ">
             {value:.2f}%
         </div>
@@ -260,45 +246,53 @@ for index, row in chart_data.iterrows():
     """
 
 
-# HTML 그래프 종료
-chart_html += "</div>"
+graph_html += "</div>"
 
 
-# 그래프 화면 출력
+# 그래프 표시
 st.markdown(
-    chart_html,
+    graph_html,
     unsafe_allow_html=True
 )
 
 
-# 가장 높은 비율의 MBTI 유형
-top_type = chart_data.iloc[0]
+# ==========================================
+# 1위 유형 표시
+# ==========================================
 
+top_mbti = chart_data.iloc[0]
 
-# 결과 안내
 st.success(
-    f"📌 {selected_country}에서 가장 높은 비율을 보이는 유형은 "
-    f"{top_type['MBTI']} ({top_type['비율']:.2f}%) 입니다."
+    f"🏆 {selected_country}의 1위 MBTI는 "
+    f"{top_mbti['MBTI']}이며, 비율은 "
+    f"{top_mbti['비율']:.2f}%입니다."
 )
 
 
+# ==========================================
 # 데이터 표
-with st.expander("📋 MBTI 비율 데이터 표 보기"):
+# ==========================================
 
-    display_data = chart_data.copy()
+with st.expander("📋 MBTI 비율 데이터 보기"):
 
-    display_data["비율"] = display_data["비율"].map(
-        lambda value: f"{value:.2f}%"
+    table_data = chart_data.copy()
+
+    table_data["비율"] = table_data["비율"].apply(
+        lambda x: f"{x:.2f}%"
     )
 
     st.dataframe(
-        display_data,
-        hide_index=True,
-        use_container_width=True
+        table_data,
+        use_container_width=True,
+        hide_index=True
     )
 
 
+# ==========================================
 # 안내 문구
+# ==========================================
+
 st.caption(
-    "※ 이 데이터는 국가별 MBTI 유형 비율을 나타내는 참고용 통계입니다."
+    "※ 국가별 MBTI 비율은 참고용 통계이며, "
+    "개인의 성격을 단정하는 자료가 아닙니다."
 )
