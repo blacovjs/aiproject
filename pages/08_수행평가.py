@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 
 from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
@@ -21,18 +20,20 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 
+
 # ==========================================
 # 1. 페이지 설정
 # ==========================================
 
 st.set_page_config(
-    page_title="Penguin AI World 🐧",
+    page_title="Penguin AI World",
     page_icon="🐧",
     layout="wide"
 )
 
+
 # ==========================================
-# 2. 귀여운 디자인 CSS
+# 2. 귀여운 디자인
 # ==========================================
 
 st.markdown("""
@@ -77,22 +78,6 @@ html, body, [class*="css"] {
     font-size: 19px;
 }
 
-.penguin-card {
-    background: white;
-    padding: 22px;
-    border-radius: 22px;
-    border: 2px solid #d8effb;
-    box-shadow: 0 5px 15px rgba(73, 143, 176, 0.10);
-    margin-bottom: 15px;
-}
-
-.section-title {
-    color: #245b7a;
-    font-size: 25px;
-    margin-top: 20px;
-    margin-bottom: 15px;
-}
-
 .info-box {
     background: #ffffff;
     border-left: 6px solid #8ed8f8;
@@ -100,6 +85,13 @@ html, body, [class*="css"] {
     border-radius: 15px;
     margin-bottom: 15px;
     color: #31546a;
+}
+
+.section-title {
+    color: #245b7a;
+    font-size: 25px;
+    margin-top: 20px;
+    margin-bottom: 15px;
 }
 
 div[data-testid="stMetric"] {
@@ -137,17 +129,21 @@ div[data-testid="stMetric"] {
     color: #174568;
 }
 
-.stSelectbox, .stNumberInput {
+.penguin-card {
     background: white;
-    border-radius: 12px;
+    border: 2px solid #cceeff;
+    border-radius: 20px;
+    padding: 15px;
+    box-shadow: 0 5px 15px rgba(80,150,190,0.12);
+    margin-bottom: 15px;
 }
 
 footer {
     visibility: hidden;
 }
-
 </style>
 """, unsafe_allow_html=True)
+
 
 # ==========================================
 # 3. 상단 화면
@@ -161,6 +157,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+
 # ==========================================
 # 4. 데이터 불러오기
 # ==========================================
@@ -169,6 +166,7 @@ st.markdown("""
 def load_data():
     return pd.read_csv("penguins.csv")
 
+
 try:
     df = load_data()
 except Exception:
@@ -176,21 +174,19 @@ except Exception:
     st.info("app.py와 penguins.csv 파일이 같은 폴더에 있는지 확인해 주세요.")
     st.stop()
 
-# 불필요한 인덱스 열 제거
-df = df.loc[:, ~df.columns.astype(str).str.startswith("Unnamed")]
+df = df.loc[
+    :,
+    ~df.columns.astype(str).str.startswith("Unnamed")
+]
 
-# 컬럼명 정리
 df.columns = df.columns.str.strip()
 
-# 필요한 컬럼 확인
 if "species" not in df.columns:
     st.error("데이터에 species 열이 없습니다.")
     st.stop()
 
-# 타깃이 없는 행 제거
 df = df.dropna(subset=["species"]).copy()
 
-# 분석에 사용할 특성
 features = [
     "island",
     "bill_length_mm",
@@ -200,20 +196,27 @@ features = [
     "sex"
 ]
 
-features = [col for col in features if col in df.columns]
+features = [
+    col for col in features
+    if col in df.columns
+]
 
 if not features:
-    st.error("분석에 사용할 특성을 찾을 수 없습니다.")
+    st.error("분석에 사용할 특성이 없습니다.")
     st.stop()
 
 X = df[features].copy()
 y = df["species"].astype(str)
 
-# 숫자형과 범주형 컬럼 구분
-numeric_features = X.select_dtypes(include=np.number).columns.tolist()
+numeric_features = X.select_dtypes(
+    include=np.number
+).columns.tolist()
+
 categorical_features = [
-    col for col in features if col not in numeric_features
+    col for col in features
+    if col not in numeric_features
 ]
+
 
 # ==========================================
 # 5. 데이터 전처리
@@ -236,40 +239,46 @@ preprocessor = ColumnTransformer(
     ]
 )
 
+
 # ==========================================
-# 6. AI 모델 준비
+# 6. AI 모델
 # ==========================================
 
-models = {
+model_settings = {
     "KNN 🐧": KNeighborsClassifier(n_neighbors=5),
+
     "의사결정나무 🌳": DecisionTreeClassifier(
         max_depth=5,
         random_state=42
     ),
+
     "랜덤포레스트 🌲": RandomForestClassifier(
         n_estimators=150,
         random_state=42
     )
 }
 
+
 # ==========================================
-# 7. 학습 및 평가
+# 7. 모델 학습 및 평가
 # ==========================================
 
 @st.cache_resource
-def train_models(X, y, feature_names):
+def train_models(data_x, data_y):
+
     X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
+        data_x,
+        data_y,
         test_size=0.2,
         random_state=42,
-        stratify=y
+        stratify=data_y
     )
 
     trained_models = {}
     results = []
 
-    for name, model in models.items():
+    for name, model in model_settings.items():
+
         pipeline = Pipeline(steps=[
             ("preprocessor", preprocessor),
             ("classifier", model)
@@ -285,37 +294,41 @@ def train_models(X, y, feature_names):
             "모델": name,
             "정확도": accuracy_score(y_test, predictions),
             "정밀도": precision_score(
-                y_test, predictions,
+                y_test,
+                predictions,
                 average="weighted",
                 zero_division=0
             ),
             "재현율": recall_score(
-                y_test, predictions,
+                y_test,
+                predictions,
                 average="weighted",
                 zero_division=0
             ),
             "F1 점수": f1_score(
-                y_test, predictions,
+                y_test,
+                predictions,
                 average="weighted",
                 zero_division=0
             )
         })
 
-    return (
-        trained_models,
-        pd.DataFrame(results),
-        X_test,
-        y_test
-    )
+    return trained_models, pd.DataFrame(results), X_test, y_test
+
 
 try:
-    trained_models, results_df, X_test, y_test = train_models(
-        X, y, features
-    )
+    (
+        trained_models,
+        results_df,
+        X_test,
+        y_test
+    ) = train_models(X, y)
+
 except Exception as e:
-    st.error("AI 모델을 학습하는 중 문제가 발생했어요.")
+    st.error("AI 모델을 학습하는 중 오류가 발생했어요.")
     st.exception(e)
     st.stop()
+
 
 # ==========================================
 # 8. 메뉴
@@ -327,6 +340,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📊 데이터 분석",
     "❄️ 펭귄 도감"
 ])
+
 
 # ==========================================
 # TAB 1. 펭귄 예측
@@ -347,13 +361,18 @@ with tab1:
 
     col1, col2 = st.columns(2)
 
+    input_values = {}
+
     with col1:
+
         st.markdown("### 📏 몸의 특징")
 
-        input_values = {}
-
         for col in numeric_features:
-            valid = pd.to_numeric(df[col], errors="coerce").dropna()
+
+            valid = pd.to_numeric(
+                df[col],
+                errors="coerce"
+            ).dropna()
 
             if len(valid) == 0:
                 continue
@@ -372,9 +391,11 @@ with tab1:
             )
 
     with col2:
+
         st.markdown("### 🏝️ 추가 정보")
 
         for col in categorical_features:
+
             options = sorted(
                 df[col].dropna().astype(str).unique().tolist()
             )
@@ -390,7 +411,10 @@ with tab1:
         list(trained_models.keys())
     )
 
-    if st.button("🐧 내 펭귄의 종 알아보기", use_container_width=True):
+    if st.button(
+        "🐧 내 펭귄의 종 알아보기",
+        use_container_width=True
+    ):
 
         input_df = pd.DataFrame(
             [input_values],
@@ -402,7 +426,10 @@ with tab1:
         prediction = model.predict(input_df)[0]
 
         probabilities = model.predict_proba(input_df)[0]
-        classes = model.named_steps["classifier"].classes_
+
+        classes = model.named_steps[
+            "classifier"
+        ].classes_
 
         st.markdown("---")
 
@@ -411,7 +438,9 @@ with tab1:
             unsafe_allow_html=True
         )
 
-        st.success(f"🐧 이 펭귄은 **{prediction}** 종으로 예측되었어요!")
+        st.success(
+            f"🐧 이 펭귄은 **{prediction}** 종으로 예측되었어요!"
+        )
 
         probability_df = pd.DataFrame({
             "펭귄 종": classes,
@@ -434,7 +463,10 @@ with tab1:
             showlegend=False
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
 
         confidence = float(max(probabilities))
 
@@ -447,7 +479,10 @@ with tab1:
             st.balloons()
             st.info("정말 높은 확률로 예측했어요! 🎊")
         else:
-            st.info("다른 펭귄 종일 가능성도 있으니 참고해 주세요! ❄️")
+            st.info(
+                "다른 펭귄 종일 가능성도 있으니 참고해 주세요! ❄️"
+            )
+
 
 # ==========================================
 # TAB 2. AI 모델 비교
@@ -466,27 +501,27 @@ with tab2:
     </div>
     """, unsafe_allow_html=True)
 
-    metric_col1, metric_col2, metric_col3 = st.columns(3)
-
     best_model = results_df.loc[
         results_df["정확도"].idxmax()
     ]
 
-    with metric_col1:
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
         st.metric(
             "🏆 가장 높은 정확도",
             f"{best_model['정확도']:.1%}"
         )
 
-    with metric_col2:
+    with c2:
         st.metric(
             "🤖 최고 모델",
             best_model["모델"]
         )
 
-    with metric_col3:
+    with c3:
         st.metric(
-            "📚 학습 데이터",
+            "📚 전체 데이터",
             f"{len(df)}개"
         )
 
@@ -515,13 +550,21 @@ with tab2:
         showlegend=False
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
 
     st.markdown("### 📋 전체 평가 결과")
 
     display_results = results_df.copy()
 
-    for col in ["정확도", "정밀도", "재현율", "F1 점수"]:
+    for col in [
+        "정확도",
+        "정밀도",
+        "재현율",
+        "F1 점수"
+    ]:
         display_results[col] = display_results[col].map(
             lambda x: f"{x:.2%}"
         )
@@ -532,8 +575,7 @@ with tab2:
         hide_index=True
     )
 
-    # 혼동 행렬
-    st.markdown("### 🔍 모델별 예측 결과 분석")
+    st.markdown("### 🔍 혼동 행렬")
 
     selected_matrix_model = st.selectbox(
         "혼동 행렬을 확인할 모델",
@@ -542,6 +584,7 @@ with tab2:
     )
 
     matrix_model = trained_models[selected_matrix_model]
+
     matrix_predictions = matrix_model.predict(X_test)
 
     labels = sorted(y.unique())
@@ -566,11 +609,15 @@ with tab2:
         title="🐧 실제 펭귄 종과 AI 예측 비교"
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
 
     st.caption(
         "가로축은 AI가 예측한 종이고 세로축은 실제 종이에요."
     )
+
 
 # ==========================================
 # TAB 3. 데이터 분석
@@ -600,7 +647,6 @@ with tab3:
     with c3:
         st.metric("📋 데이터 특성", f"{len(features)}개")
 
-    # 종별 개수
     st.markdown("### 🐧 펭귄 종별 개수")
 
     species_count = (
@@ -623,9 +669,11 @@ with tab3:
         ]
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
 
-    # 결측치
     st.markdown("### 🧩 결측치 확인")
 
     missing = df.isnull().sum().reset_index()
@@ -640,9 +688,11 @@ with tab3:
         color_continuous_scale="Blues"
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
 
-    # 특성 선택
     available_numeric = [
         col for col in numeric_features
         if df[col].notna().any()
@@ -661,7 +711,7 @@ with tab3:
         y_axis = st.selectbox(
             "세로축",
             available_numeric,
-            index=1 if len(available_numeric) > 1 else 0
+            index=1
         )
 
         plot_df = df.dropna(
@@ -677,16 +727,20 @@ with tab3:
             hover_data=features
         )
 
-        fig.update_traces(marker=dict(size=11, opacity=0.8))
+        fig.update_traces(
+            marker=dict(size=11, opacity=0.8)
+        )
 
         fig.update_layout(
             plot_bgcolor="white",
             paper_bgcolor="white"
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
 
-    # 데이터 미리보기
     st.markdown("### 📚 펭귄 데이터 구경하기")
 
     st.dataframe(
@@ -695,7 +749,9 @@ with tab3:
         hide_index=True
     )
 
-    csv = df.to_csv(index=False).encode("utf-8-sig")
+    csv = df.to_csv(
+        index=False
+    ).encode("utf-8-sig")
 
     st.download_button(
         "📥 펭귄 데이터 다운로드",
@@ -703,6 +759,7 @@ with tab3:
         file_name="penguins_data.csv",
         mime="text/csv"
     )
+
 
 # ==========================================
 # TAB 4. 펭귄 도감
@@ -717,23 +774,38 @@ with tab4:
 
     st.markdown("""
     <div class="info-box">
-    우리 AI 연구소에서 알아볼 수 있는 펭귄 친구들이에요!
+    세 종류의 펭귄 친구들을 만나봐요!
+    생김새가 어떻게 다른지도 관찰해 보세요. ❄️
     </div>
     """, unsafe_allow_html=True)
 
-    species_list = sorted(df["species"].unique())
+    # 종류별 사진과 설명
+    penguin_info = {
+        "Adelie": {
+            "korean": "아델리 펭귄",
+            "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Ad%C3%A9lie_Penguin.jpg",
+            "description": "눈 주위의 흰색 테두리와 검은 머리가 특징이에요.",
+            "feature": "눈 주위의 흰색 고리"
+        },
 
-    penguin_images = {
-        "Adelie": "cute adelie penguin standing on snow",
-        "Chinstrap": "cute chinstrap penguin standing on snow",
-        "Gentoo": "cute gentoo penguin standing on snow"
+        "Chinstrap": {
+            "korean": "턱끈 펭귄",
+            "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Chinstrap_Penguin.jpg",
+            "description": "턱 아래에 검은색 줄무늬가 있는 펭귄이에요.",
+            "feature": "턱 아래 검은 줄무늬"
+        },
+
+        "Gentoo": {
+            "korean": "젠투 펭귄",
+            "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Gentoo_penguin.jpg",
+            "description": "눈 위의 흰색 무늬와 주황색 부리가 특징이에요.",
+            "feature": "눈 위 흰색 무늬와 주황색 부리"
+        }
     }
 
-    penguin_descriptions = {
-        "Adelie": "작은 몸과 짧은 부리가 특징인 펭귄 친구예요!",
-        "Chinstrap": "턱 아래 검은 줄무늬가 특징인 펭귄 친구예요!",
-        "Gentoo": "머리 위의 흰색 무늬와 주황색 부리가 특징이에요!"
-    }
+    species_list = sorted(
+        df["species"].astype(str).unique()
+    )
 
     cols = st.columns(3)
 
@@ -741,34 +813,73 @@ with tab4:
 
         with cols[i % 3]:
 
+            info = penguin_info.get(species)
+
             st.markdown(
                 '<div class="penguin-card">',
                 unsafe_allow_html=True
             )
 
-            if species in penguin_images:
+            if info:
+
                 st.image(
-                    "https://images.unsplash.com/photo-1551986782-d0169b3f8fa7?w=600",
-                    use_container_width=True
+                    info["image"],
+                    use_container_width=True,
+                    caption=info["korean"]
                 )
 
-            st.subheader(f"🐧 {species}")
+                st.markdown(
+                    f"### 🐧 {info['korean']}"
+                )
 
-            description = penguin_descriptions.get(
-                species,
-                "남극의 귀여운 펭귄 친구예요!"
+                st.write(info["description"])
+
+                st.info(
+                    f"🔍 특징: {info['feature']}"
+                )
+
+                st.caption(
+                    "사진 출처: Wikimedia Commons"
+                )
+
+            else:
+
+                st.markdown(f"### 🐧 {species}")
+                st.write("새로운 펭귄 친구예요!")
+
+            count = int(
+                (df["species"].astype(str) == species).sum()
             )
 
-            st.write(description)
+            st.metric(
+                "📊 데이터 속 개체 수",
+                f"{count}마리"
+            )
 
-            count = int((df["species"] == species).sum())
+            st.markdown(
+                "</div>",
+                unsafe_allow_html=True
+            )
 
-            st.metric("데이터 속 개체 수", f"{count}마리")
+    st.markdown("---")
 
-            st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg,#dff4ff,#f2fbff);
+        padding: 20px;
+        border-radius: 20px;
+        text-align: center;
+        color: #315c75;
+    ">
+        <h3>❄️ 펭귄 관찰 미션 ❄️</h3>
+        <p>세 펭귄의 부리와 얼굴 무늬를 비교해 보세요!</p>
+        <p>AI는 이런 특징을 학습해서 펭귄의 종을 예측한답니다. 🐧</p>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 # ==========================================
-# 하단
+# 9. 하단
 # ==========================================
 
 st.markdown("---")
