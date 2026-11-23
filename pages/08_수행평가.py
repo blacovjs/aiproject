@@ -3,14 +3,13 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -18,465 +17,538 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix
 )
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 
-# =====================================
+# ==========================================
 # 1. 페이지 설정
-# =====================================
+# ==========================================
 
 st.set_page_config(
-    page_title="Penguin AI Lab",
+    page_title="Penguin AI World 🐧",
     page_icon="🐧",
     layout="wide"
 )
 
+# ==========================================
+# 2. 귀여운 디자인 CSS
+# ==========================================
+
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Jua', sans-serif;
+}
+
 .stApp {
-    background-color: #f4f7fb;
+    background: linear-gradient(
+        180deg,
+        #e8f6ff 0%,
+        #f5fbff 50%,
+        #ffffff 100%
+    );
 }
-h1 {
-    color: #17365d;
+
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+    max-width: 1250px;
 }
+
+.hero {
+    background: linear-gradient(135deg, #8ed8f8, #c5edff);
+    padding: 35px 20px;
+    border-radius: 28px;
+    text-align: center;
+    color: #174568;
+    box-shadow: 0 8px 20px rgba(67, 151, 190, 0.15);
+    margin-bottom: 25px;
+}
+
+.hero h1 {
+    font-size: 43px;
+    margin-bottom: 10px;
+}
+
+.hero p {
+    font-size: 19px;
+}
+
+.penguin-card {
+    background: white;
+    padding: 22px;
+    border-radius: 22px;
+    border: 2px solid #d8effb;
+    box-shadow: 0 5px 15px rgba(73, 143, 176, 0.10);
+    margin-bottom: 15px;
+}
+
+.section-title {
+    color: #245b7a;
+    font-size: 25px;
+    margin-top: 20px;
+    margin-bottom: 15px;
+}
+
+.info-box {
+    background: #ffffff;
+    border-left: 6px solid #8ed8f8;
+    padding: 18px;
+    border-radius: 15px;
+    margin-bottom: 15px;
+    color: #31546a;
+}
+
 div[data-testid="stMetric"] {
-    background-color: white;
-    padding: 15px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    background: white;
+    border: 2px solid #d8effb;
+    padding: 17px;
+    border-radius: 18px;
+    box-shadow: 0 4px 12px rgba(73, 143, 176, 0.08);
 }
+
+.stButton > button {
+    background: linear-gradient(90deg, #69c5ed, #91dcf7);
+    color: #174568;
+    border: none;
+    border-radius: 15px;
+    padding: 12px 25px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.stButton > button:hover {
+    background: #4db5e5;
+    color: white;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background: white;
+    border-radius: 12px;
+    padding: 12px 18px;
+    margin-right: 5px;
+}
+
+.stTabs [aria-selected="true"] {
+    background: #bdeaff;
+    color: #174568;
+}
+
+.stSelectbox, .stNumberInput {
+    background: white;
+    border-radius: 12px;
+}
+
+footer {
+    visibility: hidden;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
-# =====================================
-# 2. 데이터 불러오기
-# =====================================
-
-@st.cache_data
-def load_data(uploaded_file=None):
-
-    if uploaded_file is not None:
-        data = pd.read_csv(uploaded_file)
-    else:
-        data = pd.read_csv("penguins.csv")
-
-    required = [
-        "species",
-        "bill_length_mm",
-        "bill_depth_mm",
-        "flipper_length_mm",
-        "body_mass_g"
-    ]
-
-    missing_columns = [
-        col for col in required if col not in data.columns
-    ]
-
-    if missing_columns:
-        raise ValueError(
-            f"CSV에 필요한 열이 없습니다: {missing_columns}"
-        )
-
-    data = data[required].copy()
-
-    for col in required[1:]:
-        data[col] = pd.to_numeric(
-            data[col], errors="coerce"
-        )
-
-    data = data.dropna(subset=["species"])
-
-    data["species"] = data["species"].astype(str)
-
-    return data
-
-
-# =====================================
-# 3. 제목
-# =====================================
-
-st.title("🐧 Penguin AI Lab")
-st.subheader("인공지능 펭귄 종류 판별 프로그램")
+# ==========================================
+# 3. 상단 화면
+# ==========================================
 
 st.markdown("""
-펭귄의 신체 정보를 분석하여 종류를 예측하는 인공지능 프로그램입니다.
+<div class="hero">
+    <h1>🐧 Penguin AI World ❄️</h1>
+    <p>귀여운 펭귄 친구들의 종을 AI로 알아보자!</p>
+    <p>🔍 펭귄 연구소에 온 걸 환영해요!</p>
+</div>
+""", unsafe_allow_html=True)
 
-KNN, 의사결정나무, 랜덤 포레스트
-3가지 머신러닝 알고리즘을 직접 비교해 보세요!
-""")
+# ==========================================
+# 4. 데이터 불러오기
+# ==========================================
 
-st.divider()
-
-# =====================================
-# 4. 사이드바
-# =====================================
-
-st.sidebar.title("⚙️ AI 설정")
-
-uploaded_file = st.sidebar.file_uploader(
-    "펭귄 CSV 파일 업로드 (선택)",
-    type=["csv"]
-)
-
-test_size = st.sidebar.slider(
-    "테스트 데이터 비율",
-    0.1, 0.4, 0.2, 0.05
-)
-
-random_state = st.sidebar.slider(
-    "데이터 분할 난수 설정",
-    1, 100, 42
-)
-
-# =====================================
-# 5. 데이터 로딩
-# =====================================
+@st.cache_data
+def load_data():
+    return pd.read_csv("penguins.csv")
 
 try:
-    df = load_data(uploaded_file)
-
-except FileNotFoundError:
-    st.error(
-        "penguins.csv 파일을 찾을 수 없습니다. "
-        "GitHub 저장소에 app.py와 같은 위치로 업로드해 주세요."
-    )
+    df = load_data()
+except Exception:
+    st.error("🐧 penguins.csv 파일을 찾을 수 없어요!")
+    st.info("app.py와 penguins.csv 파일이 같은 폴더에 있는지 확인해 주세요.")
     st.stop()
 
-except Exception as e:
-    st.error(f"데이터 오류: {e}")
+# 불필요한 인덱스 열 제거
+df = df.loc[:, ~df.columns.astype(str).str.startswith("Unnamed")]
+
+# 컬럼명 정리
+df.columns = df.columns.str.strip()
+
+# 필요한 컬럼 확인
+if "species" not in df.columns:
+    st.error("데이터에 species 열이 없습니다.")
     st.stop()
 
+# 타깃이 없는 행 제거
+df = df.dropna(subset=["species"]).copy()
+
+# 분석에 사용할 특성
 features = [
+    "island",
     "bill_length_mm",
     "bill_depth_mm",
     "flipper_length_mm",
-    "body_mass_g"
+    "body_mass_g",
+    "sex"
 ]
 
-X = df[features]
-y = df["species"]
+features = [col for col in features if col in df.columns]
 
-if y.nunique() < 2:
-    st.error("분류하려면 최소 2종류 이상의 펭귄 데이터가 필요합니다.")
+if not features:
+    st.error("분석에 사용할 특성을 찾을 수 없습니다.")
     st.stop()
 
-# =====================================
-# 6. 데이터 분할
-# =====================================
+X = df[features].copy()
+y = df["species"].astype(str)
 
-try:
+# 숫자형과 범주형 컬럼 구분
+numeric_features = X.select_dtypes(include=np.number).columns.tolist()
+categorical_features = [
+    col for col in features if col not in numeric_features
+]
+
+# ==========================================
+# 5. 데이터 전처리
+# ==========================================
+
+numeric_transformer = Pipeline(steps=[
+    ("imputer", SimpleImputer(strategy="median")),
+    ("scaler", StandardScaler())
+])
+
+categorical_transformer = Pipeline(steps=[
+    ("imputer", SimpleImputer(strategy="most_frequent")),
+    ("onehot", OneHotEncoder(handle_unknown="ignore"))
+])
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ("num", numeric_transformer, numeric_features),
+        ("cat", categorical_transformer, categorical_features)
+    ]
+)
+
+# ==========================================
+# 6. AI 모델 준비
+# ==========================================
+
+models = {
+    "KNN 🐧": KNeighborsClassifier(n_neighbors=5),
+    "의사결정나무 🌳": DecisionTreeClassifier(
+        max_depth=5,
+        random_state=42
+    ),
+    "랜덤포레스트 🌲": RandomForestClassifier(
+        n_estimators=150,
+        random_state=42
+    )
+}
+
+# ==========================================
+# 7. 학습 및 평가
+# ==========================================
+
+@st.cache_resource
+def train_models(X, y, feature_names):
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
-        test_size=test_size,
-        random_state=random_state,
+        test_size=0.2,
+        random_state=42,
         stratify=y
     )
-except ValueError as e:
-    st.error(f"데이터 분할 오류: {e}")
+
+    trained_models = {}
+    results = []
+
+    for name, model in models.items():
+        pipeline = Pipeline(steps=[
+            ("preprocessor", preprocessor),
+            ("classifier", model)
+        ])
+
+        pipeline.fit(X_train, y_train)
+
+        predictions = pipeline.predict(X_test)
+
+        trained_models[name] = pipeline
+
+        results.append({
+            "모델": name,
+            "정확도": accuracy_score(y_test, predictions),
+            "정밀도": precision_score(
+                y_test, predictions,
+                average="weighted",
+                zero_division=0
+            ),
+            "재현율": recall_score(
+                y_test, predictions,
+                average="weighted",
+                zero_division=0
+            ),
+            "F1 점수": f1_score(
+                y_test, predictions,
+                average="weighted",
+                zero_division=0
+            )
+        })
+
+    return (
+        trained_models,
+        pd.DataFrame(results),
+        X_test,
+        y_test
+    )
+
+try:
+    trained_models, results_df, X_test, y_test = train_models(
+        X, y, features
+    )
+except Exception as e:
+    st.error("AI 모델을 학습하는 중 문제가 발생했어요.")
+    st.exception(e)
     st.stop()
 
-# =====================================
-# 7. 인공지능 알고리즘
-# =====================================
-
-models = {
-
-    "KNN": Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-        ("model", KNeighborsClassifier(n_neighbors=7))
-    ]),
-
-    "Decision Tree": Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("model", DecisionTreeClassifier(
-            max_depth=5,
-            random_state=random_state
-        ))
-    ]),
-
-    "Random Forest": Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("model", RandomForestClassifier(
-            n_estimators=200,
-            max_depth=8,
-            random_state=random_state,
-            class_weight="balanced"
-        ))
-    ])
-}
-
-# =====================================
-# 8. 모델 학습
-# =====================================
-
-results = []
-trained_models = {}
-
-for name, model in models.items():
-
-    model.fit(X_train, y_train)
-
-    trained_models[name] = model
-
-    pred = model.predict(X_test)
-
-    results.append({
-        "알고리즘": name,
-        "정확도": accuracy_score(y_test, pred),
-        "정밀도": precision_score(
-            y_test, pred, average="macro", zero_division=0
-        ),
-        "재현율": recall_score(
-            y_test, pred, average="macro", zero_division=0
-        ),
-        "F1 점수": f1_score(
-            y_test, pred, average="macro", zero_division=0
-        )
-    })
-
-result_df = pd.DataFrame(results)
-
-# =====================================
-# 9. 상단 데이터 요약
-# =====================================
-
-st.header("📊 데이터 현황")
-
-c1, c2, c3, c4 = st.columns(4)
-
-c1.metric("전체 펭귄 데이터", f"{len(df)}마리")
-c2.metric("학습 데이터", f"{len(X_train)}마리")
-c3.metric("테스트 데이터", f"{len(X_test)}마리")
-c4.metric("펭귄 종류", f"{y.nunique()}종")
-
-st.divider()
-
-# =====================================
-# 10. 탭
-# =====================================
+# ==========================================
+# 8. 메뉴
+# ==========================================
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "🐧 펭귄 예측",
-    "🏆 알고리즘 비교",
-    "📈 데이터 시각화",
-    "🔎 데이터 분석"
+    "🤖 AI 모델 비교",
+    "📊 데이터 분석",
+    "❄️ 펭귄 도감"
 ])
 
-# =====================================
+# ==========================================
 # TAB 1. 펭귄 예측
-# =====================================
+# ==========================================
 
 with tab1:
 
-    st.header("🐧 새로운 펭귄 종류 예측")
-
-    st.write(
-        "펭귄의 신체 정보를 입력하면 "
-        "AI가 가장 유사한 종류를 예측합니다."
+    st.markdown(
+        '<div class="section-title">🐧 어떤 펭귄일까요?</div>',
+        unsafe_allow_html=True
     )
+
+    st.markdown("""
+    <div class="info-box">
+    펭귄의 특징을 입력하면 AI가 어떤 종인지 예측해 줘요!
+    </div>
+    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
-    defaults = {
-        "bill_length_mm": 43.0,
-        "bill_depth_mm": 17.0,
-        "flipper_length_mm": 200.0,
-        "body_mass_g": 4000.0
-    }
-
     with col1:
+        st.markdown("### 📏 몸의 특징")
 
-        bill_length = st.number_input(
-            "부리 길이 (mm)",
-            min_value=20.0,
-            max_value=70.0,
-            value=defaults["bill_length_mm"],
-            step=0.1
-        )
+        input_values = {}
 
-        bill_depth = st.number_input(
-            "부리 깊이 (mm)",
-            min_value=10.0,
-            max_value=30.0,
-            value=defaults["bill_depth_mm"],
-            step=0.1
-        )
+        for col in numeric_features:
+            valid = pd.to_numeric(df[col], errors="coerce").dropna()
+
+            if len(valid) == 0:
+                continue
+
+            minimum = float(valid.min())
+            maximum = float(valid.max())
+            median = float(valid.median())
+
+            input_values[col] = st.number_input(
+                col,
+                min_value=minimum,
+                max_value=maximum,
+                value=median,
+                step=0.1,
+                format="%.2f"
+            )
 
     with col2:
+        st.markdown("### 🏝️ 추가 정보")
 
-        flipper_length = st.number_input(
-            "날개 길이 (mm)",
-            min_value=150.0,
-            max_value=250.0,
-            value=defaults["flipper_length_mm"],
-            step=0.1
-        )
+        for col in categorical_features:
+            options = sorted(
+                df[col].dropna().astype(str).unique().tolist()
+            )
 
-        body_mass = st.number_input(
-            "몸무게 (g)",
-            min_value=2000.0,
-            max_value=7000.0,
-            value=defaults["body_mass_g"],
-            step=50.0
-        )
+            if options:
+                input_values[col] = st.selectbox(
+                    col,
+                    options
+                )
 
     selected_model = st.selectbox(
-        "AI 알고리즘 선택",
+        "🤖 사용할 AI 모델을 선택하세요",
         list(trained_models.keys())
     )
 
-    if st.button(
-        "🔍 펭귄 종류 예측하기",
-        use_container_width=True
-    ):
+    if st.button("🐧 내 펭귄의 종 알아보기", use_container_width=True):
 
-        input_data = pd.DataFrame([{
-            "bill_length_mm": bill_length,
-            "bill_depth_mm": bill_depth,
-            "flipper_length_mm": flipper_length,
-            "body_mass_g": body_mass
-        }])
+        input_df = pd.DataFrame(
+            [input_values],
+            columns=features
+        )
 
         model = trained_models[selected_model]
 
-        prediction = model.predict(input_data)[0]
+        prediction = model.predict(input_df)[0]
 
-        probabilities = model.predict_proba(input_data)[0]
+        probabilities = model.predict_proba(input_df)[0]
+        classes = model.named_steps["classifier"].classes_
 
-        classes = model.named_steps["model"].classes_
+        st.markdown("---")
 
-        st.success(
-            f"🎉 예측된 펭귄 종류: {prediction}"
+        st.markdown(
+            '<div class="section-title">🎉 AI 예측 결과!</div>',
+            unsafe_allow_html=True
         )
 
-        prob_df = pd.DataFrame({
-            "펭귄 종류": classes,
+        st.success(f"🐧 이 펭귄은 **{prediction}** 종으로 예측되었어요!")
+
+        probability_df = pd.DataFrame({
+            "펭귄 종": classes,
             "예측 확률": probabilities
         })
 
         fig = px.bar(
-            prob_df,
-            x="펭귄 종류",
+            probability_df,
+            x="펭귄 종",
             y="예측 확률",
-            color="펭귄 종류",
-            text=prob_df["예측 확률"].apply(
-                lambda x: f"{x*100:.1f}%"
-            ),
-            title=f"{selected_model} 예측 결과"
+            color="펭귄 종",
+            text_auto=".1%",
+            title="🐧 펭귄 종별 예측 확률"
         )
 
         fig.update_layout(
-            yaxis_range=[0, 1],
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+            yaxis_tickformat=".0%",
             showlegend=False
         )
 
-        st.plotly_chart(
-            fig,
-            use_container_width=True
+        st.plotly_chart(fig, use_container_width=True)
+
+        confidence = float(max(probabilities))
+
+        st.metric(
+            "AI의 가장 높은 예측 확률",
+            f"{confidence:.1%}"
         )
 
-        st.info(
-            "예측 확률은 선택한 모델이 계산한 "
-            "분류 점수입니다."
-        )
+        if confidence >= 0.8:
+            st.balloons()
+            st.info("정말 높은 확률로 예측했어요! 🎊")
+        else:
+            st.info("다른 펭귄 종일 가능성도 있으니 참고해 주세요! ❄️")
 
-# =====================================
-# TAB 2. 알고리즘 비교
-# =====================================
+# ==========================================
+# TAB 2. AI 모델 비교
+# ==========================================
 
 with tab2:
 
-    st.header("🏆 AI 알고리즘 성능 비교")
-
-    st.write(
-        "동일한 테스트 데이터를 사용하여 "
-        "3가지 알고리즘의 성능을 비교합니다."
+    st.markdown(
+        '<div class="section-title">🤖 AI 모델 대결!</div>',
+        unsafe_allow_html=True
     )
 
-    st.subheader("성능 평가표")
+    st.markdown("""
+    <div class="info-box">
+    세 가지 AI 모델 중 어떤 모델이 펭귄 종을 가장 잘 맞힐까요?
+    </div>
+    """, unsafe_allow_html=True)
 
-    display_df = result_df.copy()
+    metric_col1, metric_col2, metric_col3 = st.columns(3)
+
+    best_model = results_df.loc[
+        results_df["정확도"].idxmax()
+    ]
+
+    with metric_col1:
+        st.metric(
+            "🏆 가장 높은 정확도",
+            f"{best_model['정확도']:.1%}"
+        )
+
+    with metric_col2:
+        st.metric(
+            "🤖 최고 모델",
+            best_model["모델"]
+        )
+
+    with metric_col3:
+        st.metric(
+            "📚 학습 데이터",
+            f"{len(df)}개"
+        )
+
+    st.markdown("### 📊 모델별 성능 비교")
+
+    metric_choice = st.selectbox(
+        "비교할 평가 지표",
+        ["정확도", "정밀도", "재현율", "F1 점수"]
+    )
+
+    fig = px.bar(
+        results_df,
+        x="모델",
+        y=metric_choice,
+        color="모델",
+        text=results_df[metric_choice].apply(
+            lambda x: f"{x:.1%}"
+        ),
+        title=f"🐧 AI 모델별 {metric_choice} 비교"
+    )
+
+    fig.update_layout(
+        yaxis=dict(range=[0, 1.05]),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        showlegend=False
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("### 📋 전체 평가 결과")
+
+    display_results = results_df.copy()
 
     for col in ["정확도", "정밀도", "재현율", "F1 점수"]:
-        display_df[col] = display_df[col].apply(
-            lambda x: f"{x*100:.2f}%"
+        display_results[col] = display_results[col].map(
+            lambda x: f"{x:.2%}"
         )
 
     st.dataframe(
-        display_df,
+        display_results,
         use_container_width=True,
         hide_index=True
     )
 
-    st.subheader("정확도 비교")
+    # 혼동 행렬
+    st.markdown("### 🔍 모델별 예측 결과 분석")
 
-    fig = px.bar(
-        result_df,
-        x="알고리즘",
-        y="정확도",
-        color="알고리즘",
-        text=result_df["정확도"].apply(
-            lambda x: f"{x*100:.1f}%"
-        ),
-        title="3가지 알고리즘 정확도"
+    selected_matrix_model = st.selectbox(
+        "혼동 행렬을 확인할 모델",
+        list(trained_models.keys()),
+        key="matrix_model"
     )
 
-    fig.update_layout(yaxis_range=[0, 1])
+    matrix_model = trained_models[selected_matrix_model]
+    matrix_predictions = matrix_model.predict(X_test)
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
-
-    best = result_df.loc[
-        result_df["정확도"].idxmax()
-    ]
-
-    st.success(
-        f"🥇 가장 높은 정확도: {best['알고리즘']} "
-        f"({best['정확도']*100:.2f}%)"
-    )
-
-    st.subheader("종합 성능 비교")
-
-    metric_df = result_df.melt(
-        id_vars="알고리즘",
-        var_name="평가 항목",
-        value_name="점수"
-    )
-
-    fig = px.bar(
-        metric_df,
-        x="알고리즘",
-        y="점수",
-        color="평가 항목",
-        barmode="group",
-        title="정확도, 정밀도, 재현율, F1 점수 비교"
-    )
-
-    fig.update_layout(yaxis_range=[0, 1])
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
-
-    st.subheader("혼동 행렬")
-
-    chosen = st.selectbox(
-        "확인할 알고리즘",
-        list(trained_models.keys())
-    )
-
-    predictions = trained_models[chosen].predict(X_test)
-
-    labels = trained_models[chosen].named_steps[
-        "model"
-    ].classes_
+    labels = sorted(y.unique())
 
     cm = confusion_matrix(
         y_test,
-        predictions,
+        matrix_predictions,
         labels=labels
     )
 
@@ -487,91 +559,135 @@ with tab2:
         text_auto=True,
         color_continuous_scale="Blues",
         labels={
-            "x": "예측 종류",
-            "y": "실제 종류",
-            "color": "개체 수"
+            "x": "AI 예측 종",
+            "y": "실제 종",
+            "color": "개수"
         },
-        title=f"{chosen} 혼동 행렬"
+        title="🐧 실제 펭귄 종과 AI 예측 비교"
     )
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.caption(
+        "가로축은 AI가 예측한 종이고 세로축은 실제 종이에요."
     )
 
-# =====================================
-# TAB 3. 시각화
-# =====================================
+# ==========================================
+# TAB 3. 데이터 분석
+# ==========================================
 
 with tab3:
 
-    st.header("📈 펭귄 데이터 시각화")
+    st.markdown(
+        '<div class="section-title">📊 펭귄 데이터 연구소</div>',
+        unsafe_allow_html=True
+    )
 
-    c1, c2 = st.columns(2)
+    st.markdown("""
+    <div class="info-box">
+    펭귄들의 몸의 특징과 종별 차이를 그래프로 살펴봐요!
+    </div>
+    """, unsafe_allow_html=True)
+
+    c1, c2, c3 = st.columns(3)
 
     with c1:
+        st.metric("🐧 전체 펭귄 수", f"{len(df)}마리")
+
+    with c2:
+        st.metric("❄️ 펭귄 종류", f"{y.nunique()}종")
+
+    with c3:
+        st.metric("📋 데이터 특성", f"{len(features)}개")
+
+    # 종별 개수
+    st.markdown("### 🐧 펭귄 종별 개수")
+
+    species_count = (
+        df["species"]
+        .value_counts()
+        .rename_axis("펭귄 종")
+        .reset_index(name="개체 수")
+    )
+
+    fig = px.pie(
+        species_count,
+        names="펭귄 종",
+        values="개체 수",
+        hole=0.45,
+        title="펭귄 종별 비율",
+        color_discrete_sequence=[
+            "#75C8EA",
+            "#A5DDF5",
+            "#D1EDFA"
+        ]
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # 결측치
+    st.markdown("### 🧩 결측치 확인")
+
+    missing = df.isnull().sum().reset_index()
+    missing.columns = ["컬럼", "결측치 개수"]
+
+    fig = px.bar(
+        missing,
+        x="컬럼",
+        y="결측치 개수",
+        color="결측치 개수",
+        title="컬럼별 결측치 개수",
+        color_continuous_scale="Blues"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # 특성 선택
+    available_numeric = [
+        col for col in numeric_features
+        if df[col].notna().any()
+    ]
+
+    if len(available_numeric) >= 2:
+
+        st.markdown("### 📈 펭귄 특징 비교")
+
         x_axis = st.selectbox(
             "가로축",
-            features,
+            available_numeric,
             index=0
         )
 
-    with c2:
         y_axis = st.selectbox(
             "세로축",
-            features,
-            index=2
+            available_numeric,
+            index=1 if len(available_numeric) > 1 else 0
         )
 
-    fig = px.scatter(
-        df,
-        x=x_axis,
-        y=y_axis,
-        color="species",
-        title="펭귄 종류별 특징 산점도",
-        hover_data=features
-    )
+        plot_df = df.dropna(
+            subset=[x_axis, y_axis, "species"]
+        )
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+        fig = px.scatter(
+            plot_df,
+            x=x_axis,
+            y=y_axis,
+            color="species",
+            title="🐧 펭귄 종별 특징 분포",
+            hover_data=features
+        )
 
-    st.subheader("펭귄 종류별 평균 비교")
+        fig.update_traces(marker=dict(size=11, opacity=0.8))
 
-    avg_df = df.groupby(
-        "species"
-    )[features].mean().reset_index()
+        fig.update_layout(
+            plot_bgcolor="white",
+            paper_bgcolor="white"
+        )
 
-    selected_feature = st.selectbox(
-        "비교할 신체 특징",
-        features,
-        key="average"
-    )
+        st.plotly_chart(fig, use_container_width=True)
 
-    fig = px.bar(
-        avg_df,
-        x="species",
-        y=selected_feature,
-        color="species",
-        text_auto=".2f",
-        title=f"종류별 {selected_feature} 평균"
-    )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
-
-# =====================================
-# TAB 4. 데이터 분석
-# =====================================
-
-with tab4:
-
-    st.header("🔎 데이터 분석 및 결측치 확인")
-
-    st.subheader("원본 데이터")
+    # 데이터 미리보기
+    st.markdown("### 📚 펭귄 데이터 구경하기")
 
     st.dataframe(
         df,
@@ -579,96 +695,94 @@ with tab4:
         hide_index=True
     )
 
-    st.subheader("결측치 현황")
-
-    missing = df[features].isnull().sum()
-
-    missing_df = pd.DataFrame({
-        "항목": missing.index,
-        "결측치 개수": missing.values
-    })
-
-    fig = px.bar(
-        missing_df,
-        x="항목",
-        y="결측치 개수",
-        color="항목",
-        title="항목별 결측치 개수"
-    )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
-
-    st.subheader("기초 통계")
-
-    st.dataframe(
-        df[features].describe().round(2),
-        use_container_width=True
-    )
-
-    st.subheader("펭귄 종류별 데이터 개수")
-
-    count_df = df["species"].value_counts().reset_index()
-    count_df.columns = ["펭귄 종류", "개체 수"]
-
-    fig = px.pie(
-        count_df,
-        names="펭귄 종류",
-        values="개체 수",
-        title="펭귄 종류별 비율",
-        hole=0.4
-    )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
-
-    st.subheader("분석 데이터 다운로드")
-
-    csv = df.to_csv(
-        index=False
-    ).encode("utf-8-sig")
+    csv = df.to_csv(index=False).encode("utf-8-sig")
 
     st.download_button(
-        "📥 분석 데이터 CSV 다운로드",
+        "📥 펭귄 데이터 다운로드",
         data=csv,
-        file_name="penguin_analysis.csv",
-        mime="text/csv",
-        use_container_width=True
+        file_name="penguins_data.csv",
+        mime="text/csv"
     )
 
-# =====================================
-# 11. 알고리즘 설명
-# =====================================
+# ==========================================
+# TAB 4. 펭귄 도감
+# ==========================================
 
-st.divider()
+with tab4:
 
-st.header("🧠 사용된 인공지능 알고리즘")
+    st.markdown(
+        '<div class="section-title">📖 귀여운 펭귄 도감</div>',
+        unsafe_allow_html=True
+    )
 
-with st.expander("1. KNN 알고리즘"):
-    st.write("""
-    새로운 데이터와 가까운 기존 데이터 K개를 찾고,
-    가장 많이 나타나는 종류로 분류하는 방법입니다.
-    """)
+    st.markdown("""
+    <div class="info-box">
+    우리 AI 연구소에서 알아볼 수 있는 펭귄 친구들이에요!
+    </div>
+    """, unsafe_allow_html=True)
 
-with st.expander("2. 의사결정나무"):
-    st.write("""
-    여러 가지 조건을 기준으로 데이터를 나누면서
-    펭귄의 종류를 판단하는 방법입니다.
-    """)
+    species_list = sorted(df["species"].unique())
 
-with st.expander("3. 랜덤 포레스트"):
-    st.write("""
-    여러 개의 의사결정나무를 만들고,
-    각각의 예측 결과를 종합하여 최종 종류를 결정하는 방법입니다.
-    """)
+    penguin_images = {
+        "Adelie": "cute adelie penguin standing on snow",
+        "Chinstrap": "cute chinstrap penguin standing on snow",
+        "Gentoo": "cute gentoo penguin standing on snow"
+    }
 
-st.divider()
+    penguin_descriptions = {
+        "Adelie": "작은 몸과 짧은 부리가 특징인 펭귄 친구예요!",
+        "Chinstrap": "턱 아래 검은 줄무늬가 특징인 펭귄 친구예요!",
+        "Gentoo": "머리 위의 흰색 무늬와 주황색 부리가 특징이에요!"
+    }
 
-st.caption(
-    "🐧 Penguin AI Lab | Palmer Penguins CSV 기반 인공지능 수행평가"
-)
+    cols = st.columns(3)
 
+    for i, species in enumerate(species_list):
+
+        with cols[i % 3]:
+
+            st.markdown(
+                '<div class="penguin-card">',
+                unsafe_allow_html=True
+            )
+
+            if species in penguin_images:
+                st.image(
+                    "https://images.unsplash.com/photo-1551986782-d0169b3f8fa7?w=600",
+                    use_container_width=True
+                )
+
+            st.subheader(f"🐧 {species}")
+
+            description = penguin_descriptions.get(
+                species,
+                "남극의 귀여운 펭귄 친구예요!"
+            )
+
+            st.write(description)
+
+            count = int((df["species"] == species).sum())
+
+            st.metric("데이터 속 개체 수", f"{count}마리")
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+# ==========================================
+# 하단
+# ==========================================
+
+st.markdown("---")
+
+st.markdown("""
+<div style="
+    text-align:center;
+    background:#dff3ff;
+    padding:25px;
+    border-radius:20px;
+    color:#315c75;
+">
+    <h3>🐧 Penguin AI World ❄️</h3>
+    <p>AI와 함께 펭귄 친구들을 알아가는 즐거운 연구소!</p>
+    <p>Made with Streamlit 💙</p>
+</div>
+""", unsafe_allow_html=True)
